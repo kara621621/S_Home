@@ -174,6 +174,8 @@
             cursor: pointer;
             text-decoration: underline;
             margin-top: 4px;
+            display: inline-block;
+            padding: 8px;
         }
 
         .auth-toggle-text:hover {
@@ -865,10 +867,20 @@
     const SUPABASE_URL = "https://loydslpsysaqgdbflnfn.supabase.co";
     const SUPABASE_ANON_KEY = "sb_publishable_Y_bkfS7hS-32TQwx6wpWhQ_OzdJ4nfO";
 
-    // Supabase 클라이언트 SDK 초기화
+    // Supabase 클라이언트 SDK 초기화 (예외 처리를 통해 다른 스크립트 실행이 중단되지 않도록 보장)
     let supabase = null;
-    if (SUPABASE_URL !== "YOUR_SUPABASE_URL" && SUPABASE_ANON_KEY !== "YOUR_SUPABASE_ANON_KEY") {
-        supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    try {
+        if (SUPABASE_URL !== "YOUR_SUPABASE_URL" && SUPABASE_ANON_KEY !== "YOUR_SUPABASE_ANON_KEY") {
+            const clientCreator = window.supabase || (typeof supabase !== 'undefined' ? supabase : null);
+            if (clientCreator && typeof clientCreator.createClient === 'function') {
+                supabase = clientCreator.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+                console.log("Supabase 클라이언트 초기화 성공");
+            } else {
+                console.error("Supabase SDK를 로드할 수 없습니다.");
+            }
+        }
+    } catch (e) {
+        console.error("Supabase 초기화 실패:", e);
     }
 
     // -------------------------------------------------------------------------
