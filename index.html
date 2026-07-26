@@ -10,6 +10,9 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&family=JetBrains+Mono:wght@400;600&family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
     
+    <!-- 🗄️ Supabase JS Client 라이브러리 SDK 추가 -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
     <style>
         /* ----------------------------------------------------------------------
          * CSS 변수 및 Cozy Natural 테마 정의 (Muji 스타일 미니멀리즘)
@@ -78,7 +81,7 @@
         }
 
         /* ----------------------------------------------------------------------
-         * 기기 연결 오버레이 (연결 전 전체 화면 팝업)
+         * 기기 연결 및 로그인 오버레이 (연결 전 전체 화면 팝업)
          * ---------------------------------------------------------------------- */
         .overlay {
             position: absolute;
@@ -86,7 +89,7 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(250, 249, 246, 0.95);
+            background: rgba(250, 249, 246, 0.98);
             z-index: 100;
             display: flex;
             flex-direction: column;
@@ -101,19 +104,93 @@
             opacity: 0;
             pointer-events: none;
             transform: scale(1.05);
+            z-index: -1;
+        }
+
+        /* 회원인증 전용 폼 스타일 */
+        .auth-card {
+            width: 100%;
+            max-width: 320px;
+            background: var(--bg-color);
+            padding: 24px;
+            border-radius: 24px;
+            box-shadow: var(--shadow-raised);
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .auth-title {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-size: 20px;
+            font-weight: 800;
+            color: var(--primary);
+            margin-bottom: 8px;
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 6px;
+            width: 100%;
+        }
+
+        .input-group label {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-muted);
+        }
+
+        .neo-input {
+            width: 100%;
+            padding: 12px 16px;
+            font-family: 'Be Vietnam Pro', sans-serif;
+            font-size: 14px;
+            color: var(--text-main);
+            background-color: var(--bg-color);
+            border: none;
+            outline: none;
+            border-radius: 12px;
+            box-shadow: var(--shadow-sunken);
+            transition: box-shadow 0.2s ease;
+        }
+
+        .neo-input:focus {
+            box-shadow: 0 0 0 2px var(--primary-light), var(--shadow-sunken);
+        }
+
+        .auth-actions {
+            margin-top: 8px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            width: 100%;
+        }
+
+        .auth-toggle-text {
+            font-size: 12px;
+            color: var(--text-muted);
+            cursor: pointer;
+            text-decoration: underline;
+            margin-top: 4px;
+        }
+
+        .auth-toggle-text:hover {
+            color: var(--primary);
         }
 
         .overlay-logo {
-            width: 100px;
-            height: 100px;
+            width: 80px;
+            height: 80px;
             border-radius: 50%;
             background: var(--bg-color);
             box-shadow: var(--shadow-raised);
             display: flex;
             justify-content: center;
             align-items: center;
-            font-size: 40px;
-            margin-bottom: 24px;
+            font-size: 36px;
+            margin-bottom: 20px;
             animation: pulse 2s infinite alternate;
         }
 
@@ -124,16 +201,16 @@
 
         .overlay-title {
             font-family: 'Plus Jakarta Sans', sans-serif;
-            font-size: 24px;
+            font-size: 22px;
             font-weight: 800;
-            margin-bottom: 12px;
+            margin-bottom: 8px;
             color: var(--primary);
         }
 
         .overlay-desc {
-            font-size: 14px;
+            font-size: 13px;
             color: var(--text-muted);
-            margin-bottom: 36px;
+            margin-bottom: 30px;
             line-height: 1.6;
         }
 
@@ -181,6 +258,31 @@
             font-size: 12px;
             color: var(--text-muted);
             margin-top: 2px;
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        /* 로그아웃 버튼 */
+        .logout-btn {
+            padding: 8px 12px;
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--color-danger);
+            border-radius: 12px;
+            box-shadow: var(--shadow-raised);
+            border: none;
+            background: var(--bg-color);
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .logout-btn:active {
+            box-shadow: var(--shadow-sunken);
+            transform: scale(0.96);
         }
 
         /* 상태 배지 */
@@ -554,8 +656,40 @@
 
 <div class="app-container">
 
-    <!-- 🚪 연결 유도 화면 오버레이 -->
-    <div id="connection-overlay" class="overlay">
+    <!-- 🔑 1단계: Supabase 로그인/회원가입 오버레이 -->
+    <div id="auth-overlay" class="overlay">
+        <div class="overlay-logo">🔐</div>
+        <h2 class="overlay-title" id="auth-title">스마트홈 로그인</h2>
+        <p class="overlay-desc" id="auth-desc">인증된 사용자만 스마트홈 시스템에<br>접속하고 제어할 수 있습니다.</p>
+        
+        <div class="auth-card">
+            <!-- 회원가입 전용 닉네임 필드 (평상시 숨김) -->
+            <div class="input-group" id="group-name" style="display: none;">
+                <label for="auth-name">이름 (닉네임)</label>
+                <input type="text" id="auth-name" class="neo-input" placeholder="이름을 입력하세요">
+            </div>
+
+            <div class="input-group">
+                <label for="auth-email">이메일 주소</label>
+                <input type="email" id="auth-email" class="neo-input" placeholder="example@email.com">
+            </div>
+            
+            <div class="input-group">
+                <label for="auth-password">비밀번호</label>
+                <input type="password" id="auth-password" class="neo-input" placeholder="비밀번호 입력 (6자 이상)">
+            </div>
+
+            <div class="auth-actions">
+                <button id="btn-auth-submit" class="neo-connect-btn" style="width: 100%; justify-content: center;">
+                    로그인하기
+                </button>
+                <span id="auth-toggle" class="auth-toggle-text">처음이신가요? 회원가입하기</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- 📡 2단계: 블루투스 기기 연결 오버레이 -->
+    <div id="connection-overlay" class="overlay hidden">
         <div class="overlay-logo">🌿</div>
         <h2 class="overlay-title">스마트홈 연결</h2>
         <p class="overlay-desc">
@@ -570,15 +704,18 @@
     <!-- 📱 메인 앱 대시보드 내부 콘텐츠 -->
     <div class="app-content" id="app-content-area" style="filter: blur(5px);">
         
-        <!-- 🔝 헤더 (타이틀 + 상태) -->
+        <!-- 🔝 헤더 (타이틀 + 상태 + 로그아웃) -->
         <header class="app-header">
             <div class="title-group">
-                <h1>Cozy Natural 홈</h1>
+                <h1 id="welcome-title">Cozy Natural 홈</h1>
                 <p>제작자: ryun</p>
             </div>
-            <div class="status-badge" id="status-badge">
-                <span class="status-dot" id="status-dot"></span>
-                <span id="status-text">연결 대기</span>
+            <div class="header-actions">
+                <button class="logout-btn" id="btn-logout">로그아웃</button>
+                <div class="status-badge" id="status-badge">
+                    <span class="status-dot" id="status-dot"></span>
+                    <span id="status-text">연결 대기</span>
+                </div>
             </div>
         </header>
 
@@ -719,10 +856,24 @@
 </div>
 
 <!-- ----------------------------------------------------------------------------
-     JavaScript Logic (Web Bluetooth 및 UI 조작)
+     JavaScript Logic (Supabase Auth, Web Bluetooth 및 UI 조작)
      ---------------------------------------------------------------------------- -->
 <script>
-    // 1. NUS BLE 서비스 및 캐릭터리스틱 UUID 상수 정의
+    // -------------------------------------------------------------------------
+    // 💡 [Supabase 설정] 본인의 Supabase URL과 Anon Key를 입력해 주세요.
+    // -------------------------------------------------------------------------
+    const SUPABASE_URL = "YOUR_SUPABASE_URL";
+    const SUPABASE_ANON_KEY = "YOUR_SUPABASE_ANON_KEY";
+
+    // Supabase 클라이언트 SDK 초기화
+    let supabase = null;
+    if (SUPABASE_URL !== "YOUR_SUPABASE_URL" && SUPABASE_ANON_KEY !== "YOUR_SUPABASE_ANON_KEY") {
+        supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    }
+
+    // -------------------------------------------------------------------------
+    // BLE 서비스 및 캐릭터리스틱 UUID 상수 정의
+    // -------------------------------------------------------------------------
     const NUS_SERVICE_UUID = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
     const NUS_RX_CHARACTERISTIC_UUID = '6e400002-b5a3-f393-e0a9-e50e24dcca9e'; // Write (Web -> ESP)
     const NUS_TX_CHARACTERISTIC_UUID = '6e400003-b5a3-f393-e0a9-e50e24dcca9e'; // Notify (ESP -> Web)
@@ -732,13 +883,28 @@
     let txCharacteristic = null;
     let receivedBuffer = "";
 
-    // 2. DOM 요소 바인딩
-    const overlay = document.getElementById('connection-overlay');
-    const overlayConnectBtn = document.getElementById('overlay-connect-btn');
+    // -------------------------------------------------------------------------
+    // DOM 요소 바인딩
+    // -------------------------------------------------------------------------
+    const authOverlay = document.getElementById('auth-overlay');
+    const connectionOverlay = document.getElementById('connection-overlay');
     const appContentArea = document.getElementById('app-content-area');
+    const overlayConnectBtn = document.getElementById('overlay-connect-btn');
     
     const statusBadge = document.getElementById('status-badge');
     const statusText = document.getElementById('status-text');
+    const welcomeTitle = document.getElementById('welcome-title');
+    
+    // 인증(Auth) 관련 DOM 요소
+    const authTitle = document.getElementById('auth-title');
+    const authDesc = document.getElementById('auth-desc');
+    const groupName = document.getElementById('group-name');
+    const authName = document.getElementById('auth-name');
+    const authEmail = document.getElementById('auth-email');
+    const authPassword = document.getElementById('auth-password');
+    const btnAuthSubmit = document.getElementById('btn-auth-submit');
+    const authToggle = document.getElementById('auth-toggle');
+    const btnLogout = document.getElementById('btn-logout');
     
     // 센서
     const tempVal = document.getElementById('val-temp');
@@ -758,7 +924,140 @@
     const terminalBox = document.getElementById('terminal-box');
     const btnClearLog = document.getElementById('btn-clear-log');
 
-    // 3. UI 탭 전환 로직
+    // -------------------------------------------------------------------------
+    // 1. Supabase Auth 사용자 로그인 / 회원가입 상태 관리
+    // -------------------------------------------------------------------------
+    let isSignUpMode = false; // 기본은 로그인 모드
+
+    // 로그인 <-> 회원가입 모드 전환 스위칭
+    authToggle.addEventListener('click', () => {
+        isSignUpMode = !isSignUpMode;
+        if (isSignUpMode) {
+            authTitle.innerText = "스마트홈 회원가입";
+            authDesc.innerHTML = "새로운 계정을 만들어<br>스마트홈 권한을 획득합니다.";
+            groupName.style.display = "flex";
+            btnAuthSubmit.innerText = "가입하기";
+            authToggle.innerText = "이미 계정이 있으신가요? 로그인하기";
+        } else {
+            authTitle.innerText = "스마트홈 로그인";
+            authDesc.innerHTML = "인증된 사용자만 스마트홈 시스템에<br>접속하고 제어할 수 있습니다.";
+            groupName.style.display = "none";
+            btnAuthSubmit.innerText = "로그인하기";
+            authToggle.innerText = "처음이신가요? 회원가입하기";
+        }
+    });
+
+    // 로그인 / 회원가입 제출 처리
+    btnAuthSubmit.addEventListener('click', async () => {
+        if (!supabase) {
+            alert("Supabase API 정보(URL, Anon Key)가 아직 입력되지 않았습니다. 코드 상단을 수정해 주세요.");
+            return;
+        }
+
+        const email = authEmail.value.trim();
+        const password = authPassword.value;
+        const name = authName.value.trim();
+
+        if (!email || !password) {
+            alert("이메일과 비밀번호를 모두 입력해 주세요.");
+            return;
+        }
+
+        if (isSignUpMode && !name) {
+            alert("가입하실 이름을 입력해 주세요.");
+            return;
+        }
+
+        try {
+            btnAuthSubmit.innerText = isSignUpMode ? "가입 진행 중..." : "인증 진행 중...";
+            btnAuthSubmit.disabled = true;
+
+            if (isSignUpMode) {
+                // [회원가입] 진행
+                const { data, error } = await supabase.auth.signUp({
+                    email: email,
+                    password: password,
+                    options: {
+                        data: {
+                            user_name: name // 트리거 함수 handle_new_user()에서 수신하는 필드
+                        }
+                    }
+                });
+                if (error) throw error;
+                
+                alert("회원가입이 완료되었습니다! 가입하신 정보로 로그인해 주세요.");
+                // 로그인 모드로 강제 전환
+                authToggle.click();
+            } else {
+                // [로그인] 진행
+                const { data, error } = await supabase.auth.signInWithPassword({
+                    email: email,
+                    password: password
+                });
+                if (error) throw error;
+            }
+        } catch (error) {
+            alert("인증 오류: " + (error.message || error));
+        } finally {
+            btnAuthSubmit.disabled = false;
+            btnAuthSubmit.innerText = isSignUpMode ? "가입하기" : "로그인하기";
+        }
+    });
+
+    // 로그아웃 처리
+    btnLogout.addEventListener('click', async () => {
+        if (supabase) {
+            const { error } = await supabase.auth.signOut();
+            if (error) {
+                alert("로그아웃 실패: " + error.message);
+            }
+        }
+    });
+
+    // 💡 [실시간 세션 상태 감지 리스너]
+    if (supabase) {
+        supabase.auth.onAuthStateChange((event, session) => {
+            console.log("세션 이벤트 발생:", event, session);
+            
+            if (session && session.user) {
+                // 로그인 상태
+                authOverlay.classList.add('hidden'); // 로그인 팝업 감추기
+                
+                // 환영 닉네임 설정 (메타데이터에서 이름 추출)
+                const userName = session.user.user_metadata?.user_name || "사용자";
+                welcomeTitle.innerText = `${userName}의 스마트홈`;
+                
+                // 블루투스가 연결되어 있지 않으면 연결 오버레이 띄우기
+                if (!bluetoothDevice) {
+                    connectionOverlay.classList.remove('hidden');
+                    appContentArea.style.filter = 'blur(5px)';
+                }
+                addLog(`${userName}님이 로그인 하였습니다.`, 'system');
+            } else {
+                // 로그아웃 상태
+                // 블루투스 연결이 켜져있다면 강제 단절
+                if (bluetoothDevice) {
+                    bluetoothDevice.gatt.disconnect();
+                }
+                
+                // 화면 초기화 및 잠금
+                authOverlay.classList.remove('hidden');
+                connectionOverlay.classList.add('hidden');
+                appContentArea.style.filter = 'blur(5px)';
+                addLog("로그아웃 상태입니다. 로그인을 진행해 주세요.", 'system');
+            }
+        });
+    } else {
+        // Supabase가 연동 안 되어 있는 경우, 경고만 띄우고 기본 대시보드 로컬 동작
+        console.warn("Supabase Config가 비어 있습니다. 로컬 테스트 모드로 진입합니다.");
+        authOverlay.classList.add('hidden');
+        connectionOverlay.classList.remove('hidden');
+    }
+
+
+    // -------------------------------------------------------------------------
+    // 2. UI 탭 전환 로직
+    // -------------------------------------------------------------------------
     document.querySelectorAll('.tab-item').forEach(item => {
         item.addEventListener('click', function() {
             document.querySelectorAll('.tab-item').forEach(btn => btn.classList.remove('active'));
@@ -770,7 +1069,9 @@
         });
     });
 
-    // 4. 로깅 함수 (터미널)
+    // -------------------------------------------------------------------------
+    // 3. 로깅 함수 (터미널)
+    // -------------------------------------------------------------------------
     function addLog(message, type = 'system') {
         const timeStr = new Date().toLocaleTimeString('ko-KR', { hour12: false });
         
@@ -796,7 +1097,9 @@
         terminalBox.innerHTML = '<div class="log-entry"><span class="log-system">※ 로그가 지워졌습니다.</span></div>';
     });
 
-    // 5. Web Bluetooth 연결 및 관리 로직
+    // -------------------------------------------------------------------------
+    // 4. Web Bluetooth 연결 및 관리 로직
+    // -------------------------------------------------------------------------
     async function connectToDevice() {
         updateConnectionStatus('scanning', '기기 검색 중...');
         addLog('블루투스 기기 검색을 시작합니다.', 'system');
@@ -831,7 +1134,7 @@
             addLog('실시간 수신 알림(Notification)이 켜졌습니다.', 'system');
             
             updateConnectionStatus('connected', '연결 완료');
-            overlay.classList.add('hidden');
+            connectionOverlay.classList.add('hidden');
             appContentArea.style.filter = 'none';
             
             setTimeout(refreshSensors, 500);
@@ -857,15 +1160,22 @@
     function onDisconnected(event) {
         addLog('블루투스 연결이 끊어졌습니다.', 'system');
         updateConnectionStatus('disconnected', '연결 대기');
-        overlay.classList.remove('hidden');
-        appContentArea.style.filter = 'blur(5px)';
+        
+        // 로그인 정보가 여전히 있다면 기기 연결 팝업 다시 노출
+        const session = supabase ? supabase.auth.session : null;
+        if (!supabase || supabase.auth.getUser()) {
+            connectionOverlay.classList.remove('hidden');
+            appContentArea.style.filter = 'blur(5px)';
+        }
         
         bluetoothDevice = null;
         rxCharacteristic = null;
         txCharacteristic = null;
     }
 
-    // 6. 데이터 송신 (Web -> ESP32)
+    // -------------------------------------------------------------------------
+    // 5. 데이터 송신 (Web -> ESP32)
+    // -------------------------------------------------------------------------
     async function sendCommand(commandChar) {
         if (!rxCharacteristic) {
             addLog('기기가 연결되어 있지 않아 명령어를 보낼 수 없습니다.', 'system');
@@ -884,7 +1194,9 @@
         }
     }
 
-    // 7. 데이터 수신 및 파싱 (ESP32 -> Web)
+    // -------------------------------------------------------------------------
+    // 6. 데이터 수신 및 파싱 (ESP32 -> Web)
+    // -------------------------------------------------------------------------
     function onDataReceived(event) {
         const value = event.target.value;
         const decoder = new TextDecoder('utf-8');
@@ -938,7 +1250,9 @@
         }, 50);
     }
 
-    // 8. 센서 정보 새로고침
+    // -------------------------------------------------------------------------
+    // 7. 센서 정보 새로고침
+    // -------------------------------------------------------------------------
     function refreshSensors() {
         addLog('센서 데이터를 갱신 요청합니다.', 'system');
         sendCommand('1');
@@ -947,7 +1261,9 @@
         }, 300);
     }
 
-    // 9. 이벤트 리스너 등록
+    // -------------------------------------------------------------------------
+    // 8. 이벤트 리스너 등록
+    // -------------------------------------------------------------------------
     overlayConnectBtn.addEventListener('click', connectToDevice);
     refreshBtn.addEventListener('click', refreshSensors);
 
