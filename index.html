@@ -942,7 +942,10 @@
     let isSignUpMode = false; // 기본은 로그인 모드
 
     // 로그인 <-> 회원가입 모드 전환 스위칭
-    authToggle.addEventListener('click', () => {
+    authToggle.addEventListener('click', (e) => {
+        e.preventDefault();
+        console.log("회원가입 토글 클릭됨! 현재 모드:", isSignUpMode);
+        
         isSignUpMode = !isSignUpMode;
         if (isSignUpMode) {
             authTitle.innerText = "스마트홈 회원가입";
