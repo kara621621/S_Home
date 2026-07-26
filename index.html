@@ -867,13 +867,16 @@
     const SUPABASE_URL = "https://loydslpsysaqgdbflnfn.supabase.co";
     const SUPABASE_ANON_KEY = "sb_publishable_Y_bkfS7hS-32TQwx6wpWhQ_OzdJ4nfO";
 
-    // Supabase 클라이언트 SDK 초기화 (예외 처리를 통해 다른 스크립트 실행이 중단되지 않도록 보장)
-    let supabase = null;
+    // 💡 Supabase CDN 로드 시 전역변수 'supabase'가 이미 선언되므로, 
+    // 충돌 방지를 위해 로컬 변수명은 'supabaseClient'를 사용합니다.
+    let supabaseClient = null;
+    let isLoggedIn = false; // 현재 로그인 세션 상태 보관 변수
+
     try {
         if (SUPABASE_URL !== "YOUR_SUPABASE_URL" && SUPABASE_ANON_KEY !== "YOUR_SUPABASE_ANON_KEY") {
             const clientCreator = window.supabase || (typeof supabase !== 'undefined' ? supabase : null);
             if (clientCreator && typeof clientCreator.createClient === 'function') {
-                supabase = clientCreator.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+                supabaseClient = clientCreator.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
                 console.log("Supabase 클라이언트 초기화 성공");
             } else {
                 console.error("Supabase SDK를 로드할 수 없습니다.");
@@ -964,7 +967,7 @@
 
     // 로그인 / 회원가입 제출 처리
     btnAuthSubmit.addEventListener('click', async () => {
-        if (!supabase) {
+        if (!supabaseClient) {
             alert("Supabase API 정보(URL, Anon Key)가 아직 입력되지 않았습니다. 코드 상단을 수정해 주세요.");
             return;
         }
@@ -989,7 +992,7 @@
 
             if (isSignUpMode) {
                 // [회원가입] 진행
-                const { data, error } = await supabase.auth.signUp({
+                const { data, error } = await supabaseClient.auth.signUp({
                     email: email,
                     password: password,
                     options: {
@@ -1005,7 +1008,7 @@
                 authToggle.click();
             } else {
                 // [로그인] 진행
-                const { data, error } = await supabase.auth.signInWithPassword({
+                const { data, error } = await supabaseClient.auth.signInWithPassword({
                     email: email,
                     password: password
                 });
@@ -1021,8 +1024,8 @@
 
     // 로그아웃 처리
     btnLogout.addEventListener('click', async () => {
-        if (supabase) {
-            const { error } = await supabase.auth.signOut();
+        if (supabaseClient) {
+            const { error } = await supabaseClient.auth.signOut();
             if (error) {
                 alert("로그아웃 실패: " + error.message);
             }
@@ -1030,12 +1033,13 @@
     });
 
     // 💡 [실시간 세션 상태 감지 리스너]
-    if (supabase) {
-        supabase.auth.onAuthStateChange((event, session) => {
+    if (supabaseClient) {
+        supabaseClient.auth.onAuthStateChange((event, session) => {
             console.log("세션 이벤트 발생:", event, session);
             
             if (session && session.user) {
                 // 로그인 상태
+                isLoggedIn = true;
                 authOverlay.classList.add('hidden'); // 로그인 팝업 감추기
                 
                 // 환영 닉네임 설정 (메타데이터에서 이름 추출)
@@ -1050,6 +1054,7 @@
                 addLog(`${userName}님이 로그인 하였습니다.`, 'system');
             } else {
                 // 로그아웃 상태
+                isLoggedIn = false;
                 // 블루투스 연결이 켜져있다면 강제 단절
                 if (bluetoothDevice) {
                     bluetoothDevice.gatt.disconnect();
@@ -1177,8 +1182,7 @@
         updateConnectionStatus('disconnected', '연결 대기');
         
         // 로그인 정보가 여전히 있다면 기기 연결 팝업 다시 노출
-        const session = supabase ? supabase.auth.session : null;
-        if (!supabase || supabase.auth.getUser()) {
+        if (isLoggedIn) {
             connectionOverlay.classList.remove('hidden');
             appContentArea.style.filter = 'blur(5px)';
         }
